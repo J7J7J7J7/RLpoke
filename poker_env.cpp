@@ -15,9 +15,9 @@ Simple Texas Hold'em (德州扑克) - C++ single-file demo
 #include <algorithm>
 #include <random>
 #include <iostream>
-using namespace std;
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+using namespace std;
 namespace py = pybind11;
 
 // ---------- 基本类型 ----------
@@ -225,6 +225,9 @@ struct Game {
             players.emplace_back(n, ai, 1000);
         }
     }
+    void resetPot() {
+        pot = 0;
+}
 
     void newRound(){
     deck.reset(); deck.shuffle();
@@ -438,6 +441,12 @@ struct Game {
 };
 
 PYBIND11_MODULE(poker_env, m){
+    py::class_<Card>(m, "Card")
+    .def(py::init<int, int>())
+    .def_readwrite("rank", &Card::rank)
+    .def_readwrite("suit", &Card::suit)
+    .def("str", &Card::str);
+
     py::class_<State>(m,"State")
         .def_readwrite("holeCards",&State::holeCards)
         .def_readwrite("boardCards",&State::boardCards)
@@ -472,6 +481,9 @@ PYBIND11_MODULE(poker_env, m){
     .def("dealRiver",&Game::dealRiver)
     .def("playOneHand",&Game::playOneHand)
     .def("resetBets",&Game::resetBets)
-    .def("win",&Game::win);
+    .def("win",&Game::win)
+    .def("resetPot",&Game::resetPot);
 
+    m.def("betterHand",&betterHand);
+    m.def("evaluate7",&evaluate7);
 }

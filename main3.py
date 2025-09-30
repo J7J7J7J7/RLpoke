@@ -1,5 +1,6 @@
 import random
 import poker_env
+from poker_env import evaluate7, betterHand
 
 RANK_STR = "23456789TJQKA"
 SUIT_CHARS = "CDHS"
@@ -30,33 +31,57 @@ def ai_policy(state):
     """简单随机策略"""
     act = poker_env.Action()
     r = random.random()
-    if r < 0.05:
+    if r < 0.1:
         act.type = poker_env.ActionType.FOLD
-    elif r < 1:
+    elif r < 0.75:
         act.type = poker_env.ActionType.CALL
     else:
         act.type = poker_env.ActionType.RAISE
         act.raiseAmount = state.currentBet + 50
     return act
 
+def convert_to_Cards(int_list):
+    cards = []
+    for c in int_list:
+        rank = c // 10
+        suit = c % 10
+        cards.append(poker_env.Card(rank, suit))
+    return cards
+
 def settlePot(game, num_players):
     folded = [game.getState(pid).folded[pid] for pid in range(num_players)]
     print(folded)
     unfolded = 0
-    idx_un = []
+    unfoldeds = []
+    poke=[]
+    board = game.getState(0).boardCards
     pot = game.getState(0).pot
     for idx in range(num_players):
         if not folded[idx] :
             unfolded = unfolded + 1
-            idx_un.append(idx)
-    print(idx_un)
-    if unfolded == 1 :
-        game.win(idx_un[0], pot)
-    else :
-        for idx in range(unfolded):
-            game.win(idx_un[idx], int(pot/unfolded))
+            unfoldeds.append(idx)
+            poke.append(game.getState(idx).holeCards + board)  
+    
+    print(poke)
+    hand_evals = []
+    for hand in poke:
+        hand_ = convert_to_Cards(hand)
+        hand_evals.append(evaluate7(hand_))
+    best_eval = hand_evals[0]
+    winners = [unfoldeds[0]]
 
+    for i in range(1, len(hand_evals)):
+        idx = unfoldeds[i]
+        if betterHand(hand_evals[i], best_eval):
+            best_eval = hand_evals[i]
+            winners = [idx]  # <-- 发现更强手牌，重置 winners
+        elif not betterHand(hand_evals[i], best_eval) and not betterHand(best_eval, hand_evals[i]):
+            winners.append(idx)  # <-- 平手才加入 winners
 
+    share = pot // len(winners)
+
+    for w in winners:
+        game.win(w, share)
 
 def post_blinds(game, num_players, dealer_pos, small_blind=25, big_blind=50):
     """
@@ -82,7 +107,6 @@ def post_blinds(game, num_players, dealer_pos, small_blind=25, big_blind=50):
     print(f"Player {bb_pos} posts big blind: {big_blind}")
     return sb_pos, bb_pos
 
-
 def betting_round_pre(game, num_players, dealer_pos):
     start_idx = (dealer_pos + 3) % num_players
     idx = start_idx
@@ -105,7 +129,6 @@ def betting_round_pre(game, num_players, dealer_pos):
                 finished = False
 
             idx = (idx + 1) % num_players
-
 
 def betting_round(game, num_players, dealer_pos):
     start_idx = (dealer_pos + 3) % num_players
@@ -213,6 +236,7 @@ def play_games(num_players=6, num_hands=3):
         print(f"\n=== Hand {i+1} ===")
         rewards = play_one_hand(game, dealer_pos, num_players)
         history.append(rewards)
+        game.resetPot()
 
     print("\n=== All Hands History ===")
     for i, r in enumerate(history):
